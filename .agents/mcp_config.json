@@ -2,6 +2,14 @@
   "mcpServers": {
     "render": {
       "serverUrl": "https://mcp.render.com/mcp"
+    },
+    "porkbun": {
+      "command": "npx",
+      "args": ["-y", "@porkbunllc/mcp-server"],
+      "env": {
+        "PORKBUN_API_KEY": "pk1_16f408959dd3b3b02232556eabde816a20ca14679bafff6c80a4ccdc27d0584b",
+        "PORKBUN_SECRET_KEY": "sk1_8c2a01cc469ad7849380e32f1019be4f18a75c45bcb1c9b45176ae9f8f471f6d"
+      }
     }
   }
 }
