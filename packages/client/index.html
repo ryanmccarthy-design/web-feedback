@@ -122,6 +122,9 @@
       cursor: pointer;
     }
   </style>
+
+  <!-- Embed the UMD Script -->
+  <script src="/dist/prototype-feedback.umd.cjs"></script>
 </head>
 <body>
 
@@ -160,8 +163,7 @@
   </main>
 
   <!-- Embed the Web Component -->
-  <prototype-feedback api-url="http://localhost:3001/api/feedback" button-text="Leave Feedback"></prototype-feedback>
+  <prototype-feedback api-url="/api/feedback" button-text="Leave Feedback"></prototype-feedback>
 
-  <script type="module" src="/src/index.ts"></script>
 </body>
 </html>

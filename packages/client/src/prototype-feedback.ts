@@ -54,7 +54,7 @@ export class PrototypeFeedback extends HTMLElement {
   }
 
   private get apiUrl(): string {
-    return this.getAttribute('api-url') || 'http://localhost:3001/api/feedback';
+    return this.getAttribute('api-url') || '/api/feedback';
   }
 
   private get buttonText(): string {

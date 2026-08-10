@@ -1,7 +1,12 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import feedbackRouter from './routes/feedback.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -12,12 +17,25 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Routes
+// Health Check
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'Prototype Feedback API', timestamp: new Date().toISOString() });
 });
 
+// API Routes
 app.use('/api/feedback', feedbackRouter);
+
+// Serve static client assets and demo page
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+const clientRootPath = path.resolve(__dirname, '../../client');
+
+app.use('/dist', express.static(clientDistPath));
+app.use(express.static(clientRootPath));
+
+// Fallback route to serve demo index.html
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(clientRootPath, 'index.html'));
+});
 
 // Start Server
 app.listen(config.port, () => {
@@ -28,6 +46,7 @@ app.listen(config.port, () => {
 📡 URL: http://localhost:${config.port}
 📌 Feedback Endpoint: POST http://localhost:${config.port}/api/feedback
 🟢 Health Check: GET http://localhost:${config.port}/health
+💻 Demo Web Page: GET http://localhost:${config.port}/
 =====================================================
   `);
 });

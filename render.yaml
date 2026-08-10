@@ -1,0 +1,42 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Express Backend Web Service
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: web-feedback-api
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        value: "Prototype Feedback <no-reply@prototype-feedback.dev>"
+
+  # ---------------------------------------------------------------------------
+  # 2. Frontend Demo Static Site
+  # ---------------------------------------------------------------------------
+  - type: static
+    name: web-feedback-demo
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build:client
+    staticPublishPath: packages/client/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
