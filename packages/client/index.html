@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaaS Prototype - Visual Feedback Demo</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .brand {
+      font-size: 24px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a5b4fc, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #4f46e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-title {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .card-trend {
+      font-size: 12px;
+      color: #10b981;
+    }
+
+    .content-section {
+      background: var(--card-bg);
+      padding: 32px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    p {
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .cta-btn {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">🚀 Acme App Prototype</div>
+    <div class="user-profile">
+      <div class="avatar">JD</div>
+      <span>John Doe (Design Lead)</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">Active Users</div>
+        <div class="card-value">12,480</div>
+        <div class="card-trend">↑ +14% vs last week</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Conversion Rate</div>
+        <div class="card-value">4.2%</div>
+        <div class="card-trend">↑ +0.8% vs last week</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Avg. Session Time</div>
+        <div class="card-value">4m 32s</div>
+        <div class="card-trend" style="color: #f59e0b;">→ Unchanged</div>
+      </div>
+    </div>
+
+    <div class="content-section">
+      <h2>Project Roadmap & Feedback Test Area</h2>
+      <p>This is a live web prototype. Click the floating "Feedback" button in the bottom-right corner to test the Annotate mode, drop a pin anywhere on this UI, and submit feedback. A screenshot with your pin will be captured automatically and sent to the backend!</p>
+      <button class="cta-btn">Explore Features</button>
+    </div>
+  </main>
+
+  <!-- Embed the Web Component -->
+  <prototype-feedback api-url="http://localhost:3001/api/feedback" button-text="Leave Feedback"></prototype-feedback>
+
+  <script type="module" src="/src/index.ts"></script>
+</body>
+</html>
