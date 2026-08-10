@@ -13,20 +13,16 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.11.0
+      - key: MAILTRAP_TOKEN
+        sync: false
+      - key: SENDER_EMAIL
+        value: "hello@productdesign.rockbot.com"
+      - key: SENDER_NAME
+        value: "Prototype Feedback"
+      - key: ADMIN_EMAIL
+        value: "ryan.mccarthy@rockbot.com"
       - key: SLACK_WEBHOOK_URL
         sync: false
-      - key: ADMIN_EMAIL
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
-        value: "Prototype Feedback <no-reply@prototype-feedback.dev>"
 
   # ---------------------------------------------------------------------------
   # 2. Frontend Demo Static Site
