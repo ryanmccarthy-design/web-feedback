@@ -773,13 +773,7 @@ export class PrototypeFeedback extends HTMLElement {
         <button id="pf-draft-close" style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer;">&times;</button>
       </div>
 
-      <div style="display: flex; gap: 6px;">
-        <button class="pf-draft-chip selected" data-cat="Issue" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #6366f1; color: white; border: none; cursor: pointer;">Issue</button>
-        <button class="pf-draft-chip" data-cat="Idea" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.08); color: #94a3b8; border: none; cursor: pointer;">Idea</button>
-        <button class="pf-draft-chip" data-cat="Design" style="padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.08); color: #94a3b8; border: none; cursor: pointer;">Design</button>
-      </div>
-
-      <textarea id="pf-draft-text" placeholder="Type a comment or note..." style="width: 100%; height: 80px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 10px; color: white; font-family: inherit; font-size: 13px; outline: none; resize: none;"></textarea>
+      <textarea id="pf-draft-text" placeholder="Type a comment or note..." style="width: 100%; height: 90px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 10px; color: white; font-family: inherit; font-size: 13px; outline: none; resize: none;"></textarea>
 
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button id="pf-draft-cancel" style="padding: 8px 14px; background: transparent; border: none; color: #94a3b8; font-size: 12px; cursor: pointer;">Cancel</button>
@@ -789,26 +783,12 @@ export class PrototypeFeedback extends HTMLElement {
 
     document.body.appendChild(popover);
 
-    const chips = popover.querySelectorAll('.pf-draft-chip');
-    chips.forEach((c) => {
-      c.addEventListener('click', () => {
-        chips.forEach((ch) => {
-          (ch as HTMLElement).style.background = 'rgba(255,255,255,0.08)';
-          (ch as HTMLElement).style.color = '#94a3b8';
-        });
-        (c as HTMLElement).style.background = '#6366f1';
-        (c as HTMLElement).style.color = '#ffffff';
-        c.classList.add('selected');
-      });
-    });
-
     popover.querySelector('#pf-draft-close')?.addEventListener('click', () => this.closeActivePopover());
     popover.querySelector('#pf-draft-cancel')?.addEventListener('click', () => this.closeActivePopover());
 
     popover.querySelector('#pf-draft-post')?.addEventListener('click', async () => {
       const text = (popover.querySelector('#pf-draft-text') as HTMLTextAreaElement)?.value.trim();
-      const selectedChip = popover.querySelector('.pf-draft-chip.selected');
-      const category = selectedChip?.getAttribute('data-cat') || 'Issue';
+      const category = 'Comment';
 
       if (!text) return;
 
@@ -929,12 +909,9 @@ export class PrototypeFeedback extends HTMLElement {
 
     popover.innerHTML = `
       <div style="padding: 12px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="padding: 2px 8px; background: #6366f1; border-radius: 10px; font-size: 10px; font-weight: 700;">${comment.category}</span>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            ${comment.avatar.startsWith('http') ? `<img src="${comment.avatar}" style="width: 18px; height: 18px; border-radius: 50%;" />` : ''}
-            <span style="font-size: 12px; font-weight: 600; color: #94a3b8;">${comment.author}</span>
-          </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          ${comment.avatar.startsWith('http') ? `<img src="${comment.avatar}" style="width: 18px; height: 18px; border-radius: 50%;" />` : ''}
+          <span style="font-size: 12px; font-weight: 600; color: #a5b4fc;">${comment.author}</span>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <button id="pf-resolve-btn" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;">Resolve</button>
@@ -1181,7 +1158,7 @@ export class PrototypeFeedback extends HTMLElement {
         <div class="pf-sb-card" data-comment-id="${c.id}" data-url="${c.url}" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.2s ease;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="padding: 2px 6px; background: #6366f1; border-radius: 8px; font-size: 10px; font-weight: 700;">#${index + 1} ${c.category}</span>
+              <span style="padding: 2px 6px; background: #6366f1; border-radius: 8px; font-size: 10px; font-weight: 700;">#${index + 1}</span>
               <span style="font-size: 11px; font-weight: 600; color: #a5b4fc;">${c.author}</span>
             </div>
             <span style="font-size: 10px; color: #64748b;">${new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
