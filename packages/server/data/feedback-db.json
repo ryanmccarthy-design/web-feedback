@@ -1,0 +1,38 @@
+[
+  {
+    "url": "http://localhost:3001/",
+    "author": "alex@rockbot.com",
+    "avatar": "A",
+    "category": "Design",
+    "comment": "Is this font hierarchy clear on mobile?",
+    "coordinates": {
+      "x": 300,
+      "y": 150,
+      "xPercent": 25,
+      "yPercent": 15
+    },
+    "id": "pin_sx469jiol",
+    "status": "open",
+    "createdAt": "2026-08-10T22:42:50.531Z",
+    "updatedAt": "2026-08-10T22:43:00.052Z",
+    "replies": [
+      {
+        "id": "rep_feq1g0ewn",
+        "commentId": "pin_sx469jiol",
+        "author": "Sarah (Design)",
+        "avatar": "S",
+        "text": "Looks good! Maybe bump the weight to 600.",
+        "createdAt": "2026-08-10T22:42:53.358Z",
+        "reactions": []
+      }
+    ],
+    "reactions": [
+      {
+        "id": "rx_sxtv5ok72",
+        "emoji": "👍",
+        "author": "Ryan",
+        "createdAt": "2026-08-10T22:43:00.052Z"
+      }
+    ]
+  }
+]

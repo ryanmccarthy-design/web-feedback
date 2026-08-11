@@ -9,6 +9,7 @@ export interface EmojiReaction {
   id: string;
   emoji: string;
   author: string;
+  userEmail?: string;
   createdAt: string;
 }
 
@@ -17,6 +18,7 @@ export interface CommentReply {
   commentId: string;
   author: string;
   avatar: string;
+  userEmail?: string;
   text: string;
   createdAt: string;
   reactions: EmojiReaction[];
@@ -27,6 +29,7 @@ export interface PinComment {
   url: string;
   author: string;
   avatar: string;
+  userEmail?: string;
   category: string;
   comment: string;
   image?: string; // Base64 screenshot
@@ -35,6 +38,10 @@ export interface PinComment {
     y: number;
     xPercent: number;
     yPercent: number;
+    widthPx?: number;
+    heightPx?: number;
+    widthPercent?: number;
+    heightPercent?: number;
   };
   resolution?: {
     width: number;
@@ -84,8 +91,8 @@ class DatabaseService {
     }
   }
 
-  public getComments(url?: string): PinComment[] {
-    if (!url) return this.comments;
+  public getComments(url?: string, allPages: boolean = false): PinComment[] {
+    if (allPages || !url) return this.comments;
     // Normalize URL query params or match hostname/path
     const cleanUrl = url.split('#')[0];
     return this.comments.filter((c) => c.url.split('#')[0] === cleanUrl);
@@ -133,7 +140,7 @@ class DatabaseService {
     return true;
   }
 
-  public addReply(commentId: string, replyData: { author: string; avatar: string; text: string }): CommentReply | null {
+  public addReply(commentId: string, replyData: { author: string; avatar: string; userEmail?: string; text: string }): CommentReply | null {
     const comment = this.getCommentById(commentId);
     if (!comment) return null;
 
@@ -142,6 +149,7 @@ class DatabaseService {
       commentId,
       author: replyData.author || 'Anonymous',
       avatar: replyData.avatar || '👤',
+      userEmail: replyData.userEmail,
       text: replyData.text,
       createdAt: new Date().toISOString(),
       reactions: [],
@@ -153,7 +161,7 @@ class DatabaseService {
     return newReply;
   }
 
-  public toggleReaction(commentId: string, emoji: string, author: string, replyId?: string): { action: 'added' | 'removed'; reactions: EmojiReaction[] } | null {
+  public toggleReaction(commentId: string, emoji: string, author: string, userEmail?: string, replyId?: string): { action: 'added' | 'removed'; reactions: EmojiReaction[] } | null {
     const comment = this.getCommentById(commentId);
     if (!comment) return null;
 
@@ -166,7 +174,7 @@ class DatabaseService {
       targetReactions = comment.reactions;
     }
 
-    const existingIndex = targetReactions.findIndex((r) => r.emoji === emoji && r.author === author);
+    const existingIndex = targetReactions.findIndex((r) => r.emoji === emoji && (r.author === author || (userEmail && r.userEmail === userEmail)));
     let action: 'added' | 'removed';
 
     if (existingIndex !== -1) {
@@ -177,6 +185,7 @@ class DatabaseService {
         id: 'rx_' + Math.random().toString(36).substring(2, 11),
         emoji,
         author,
+        userEmail,
         createdAt: new Date().toISOString(),
       });
       action = 'added';

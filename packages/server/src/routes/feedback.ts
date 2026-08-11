@@ -7,12 +7,13 @@ const router = Router();
 
 /**
  * GET /api/feedback
- * Fetches all persistent pins/comments for a given URL.
+ * Fetches all persistent pins/comments for a given URL (or all pages across the prototype site).
  */
 router.get('/', (req: Request, res: Response) => {
   try {
     const url = req.query.url as string | undefined;
-    const comments = db.getComments(url);
+    const allPages = req.query.allPages === 'true';
+    const comments = db.getComments(url, allPages);
     return res.status(200).json({
       success: true,
       comments,
@@ -25,7 +26,7 @@ router.get('/', (req: Request, res: Response) => {
 
 /**
  * POST /api/feedback
- * Creates a new pin comment and triggers Slack/Mailtrap notifications.
+ * Creates a new pin/box comment and triggers Slack/Mailtrap notifications.
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
@@ -38,14 +39,14 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Default coordinates if omitted
     const coordinates = payload.coordinates || { x: 100, y: 100, xPercent: 50, yPercent: 50 };
 
     // Create persistent comment in database
     const newComment = db.createComment({
       url: payload.url,
-      author: payload.email || 'Anonymous',
-      avatar: (payload.email || 'A')[0].toUpperCase(),
+      author: payload.userName || payload.email || 'Anonymous',
+      avatar: payload.userPicture || (payload.email || 'A')[0].toUpperCase(),
+      userEmail: payload.email,
       category: payload.category || 'General',
       comment: payload.comment,
       image: payload.image,
@@ -74,7 +75,7 @@ router.post('/', async (req: Request, res: Response) => {
 
 /**
  * PUT /api/feedback/:id
- * Updates pin position coordinates or comment text.
+ * Updates pin position coordinates, status, or comment text.
  */
 router.put('/:id', (req: Request, res: Response) => {
   try {
@@ -126,7 +127,7 @@ router.delete('/:id', (req: Request, res: Response) => {
 router.post('/:id/replies', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { author, text } = req.body;
+    const { author, avatar, userEmail, text } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, message: 'Reply text is required' });
@@ -134,7 +135,8 @@ router.post('/:id/replies', (req: Request, res: Response) => {
 
     const reply = db.addReply(id, {
       author: author || 'Anonymous',
-      avatar: (author || 'A')[0].toUpperCase(),
+      avatar: avatar || (author || 'A')[0].toUpperCase(),
+      userEmail,
       text,
     });
 
@@ -161,13 +163,13 @@ router.post('/:id/replies', (req: Request, res: Response) => {
 router.post('/:id/reactions', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { emoji, author, replyId } = req.body;
+    const { emoji, author, userEmail, replyId } = req.body;
 
     if (!emoji) {
       return res.status(400).json({ success: false, message: 'Emoji is required' });
     }
 
-    const result = db.toggleReaction(id, emoji, author || 'Anonymous', replyId);
+    const result = db.toggleReaction(id, emoji, author || 'Anonymous', userEmail, replyId);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Pin or reply not found' });
     }
