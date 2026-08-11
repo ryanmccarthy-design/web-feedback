@@ -64,8 +64,10 @@ export class PrototypeFeedback extends HTMLElement {
   private sidebarFilter: 'open' | 'resolved' | 'all' = 'open';
   private sidebarPageFilter: 'current' | 'all' = 'current';
 
+  private pollInterval: any = null;
+
   static get observedAttributes() {
-    return ['api-url', 'button-text', 'position', 'google-client-id'];
+    return ['api-url', 'button-text', 'position', 'google-client-id', 'project-id'];
   }
 
   constructor() {
@@ -80,6 +82,9 @@ export class PrototypeFeedback extends HTMLElement {
     this.setupEventListeners();
     this.fetchComments();
 
+    // Live background polling every 5 seconds
+    this.pollInterval = setInterval(() => this.fetchComments(), 5000);
+
     // Keydown shortcut 'C' for comment mode, 'V' for sidebar
     window.addEventListener('keydown', this.handleGlobalKeyDown);
 
@@ -88,6 +93,7 @@ export class PrototypeFeedback extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (this.pollInterval) clearInterval(this.pollInterval);
     window.removeEventListener('keydown', this.handleGlobalKeyDown);
     this.removeOverlay();
     this.removeAllPagePins();
@@ -108,6 +114,10 @@ export class PrototypeFeedback extends HTMLElement {
 
   private get googleClientId(): string {
     return this.getAttribute('google-client-id') || '';
+  }
+
+  private get projectId(): string {
+    return this.getAttribute('project-id') || 'default';
   }
 
   private loadUserSession() {
@@ -154,29 +164,39 @@ export class PrototypeFeedback extends HTMLElement {
     document.head.appendChild(script);
   }
 
-  private handleGoogleCredentialResponse(response: any) {
+  private async handleGoogleCredentialResponse(response: any) {
     try {
-      // Decode JWT payload
-      const base64Url = response.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const payload = JSON.parse(jsonPayload);
+      const authEndpoint = `${this.apiUrl.replace('/api/feedback', '')}/api/auth/google`;
+      const res = await fetch(authEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential, clientId: this.googleClientId }),
+      });
 
-      const user: GoogleUser = {
-        id: payload.sub,
-        name: payload.name || payload.email,
-        email: payload.email,
-        picture: payload.picture,
-      };
-
-      this.saveUserSession(user);
+      const data = await res.json();
+      if (data.success && data.user) {
+        this.saveUserSession(data.user);
+      } else {
+        // Fallback local decode
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const payload = JSON.parse(jsonPayload);
+        const user: GoogleUser = {
+          id: payload.sub,
+          name: payload.name || payload.email,
+          email: payload.email,
+          picture: payload.picture,
+        };
+        this.saveUserSession(user);
+      }
     } catch (err) {
-      console.error('Error parsing Google credential response:', err);
+      console.error('Error verifying Google credential with server:', err);
     }
   }
 
@@ -553,7 +573,7 @@ export class PrototypeFeedback extends HTMLElement {
 
   private async fetchComments() {
     try {
-      const res = await fetch(`${this.apiUrl}?allPages=true`);
+      const res = await fetch(`${this.apiUrl}?projectId=${encodeURIComponent(this.projectId)}&allPages=true`);
       if (!res.ok) return;
       const data = await res.json();
       if (data.success && Array.isArray(data.comments)) {
@@ -805,6 +825,8 @@ export class PrototypeFeedback extends HTMLElement {
       }
 
       const payload = {
+        projectId: this.projectId,
+        userId: this.currentUser?.id,
         comment: text,
         category,
         email: userEmail,

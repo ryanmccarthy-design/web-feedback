@@ -7,13 +7,15 @@ const router = Router();
 
 /**
  * GET /api/feedback
- * Fetches all persistent pins/comments for a given URL (or all pages across the prototype site).
+ * Fetches all persistent pins/comments for a given project & URL.
  */
 router.get('/', (req: Request, res: Response) => {
   try {
     const url = req.query.url as string | undefined;
+    const projectId = (req.query.projectId as string) || 'default';
     const allPages = req.query.allPages === 'true';
-    const comments = db.getComments(url, allPages);
+
+    const comments = db.getComments(projectId, url, allPages);
     return res.status(200).json({
       success: true,
       comments,
@@ -26,7 +28,7 @@ router.get('/', (req: Request, res: Response) => {
 
 /**
  * POST /api/feedback
- * Creates a new pin/box comment and triggers Slack/Mailtrap notifications.
+ * Creates a new pin/box comment in SQLite and triggers notifications if configured.
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
@@ -39,32 +41,44 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    const projectId = payload.projectId || 'default';
+    const userId = payload.userId || payload.email || 'usr_anonymous';
+
+    // Ensure user exists in DB
+    db.upsertUser({
+      id: userId,
+      name: payload.userName || payload.email || 'Anonymous',
+      email: payload.email || 'anonymous@feedback.dev',
+      picture: payload.userPicture || '',
+      createdAt: new Date().toISOString(),
+    });
+
     const coordinates = payload.coordinates || { x: 100, y: 100, xPercent: 50, yPercent: 50 };
 
-    // Create persistent comment in database
+    // Create persistent comment in SQLite database
     const newComment = db.createComment({
+      projectId,
       url: payload.url,
-      author: payload.userName || payload.email || 'Anonymous',
-      avatar: payload.userPicture || (payload.email || 'A')[0].toUpperCase(),
-      userEmail: payload.email,
-      category: payload.category || 'General',
+      userId,
       comment: payload.comment,
       image: payload.image,
       coordinates,
-      resolution: payload.resolution,
     });
 
-    console.log(`[Feedback Controller] Created pin ${newComment.id} for URL: ${payload.url}`);
+    console.log(`[Feedback Controller] Created pin ${newComment.id} in SQLite for project "${projectId}" URL: ${payload.url}`);
 
-    // Trigger Slack and Email notifications concurrently in background
-    Promise.allSettled([
-      sendSlackNotification(payload),
-      sendEmailNotification(payload),
-    ]).catch((e) => console.error('[Notification Error]:', e));
+    // Check project settings for email notifications
+    const project = db.getProject(projectId);
+    if (project.emailProvider !== 'none') {
+      Promise.allSettled([
+        sendSlackNotification(payload),
+        sendEmailNotification(payload),
+      ]).catch((e) => console.error('[Notification Error]:', e));
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Comment created successfully',
+      message: 'Comment created successfully in SQLite',
       comment: newComment,
     });
   } catch (err: any) {
@@ -80,9 +94,9 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { comment, coordinates, category, status } = req.body;
+    const { comment, coordinates, status } = req.body;
 
-    const updated = db.updateComment(id, { comment, coordinates, category, status });
+    const updated = db.updateComment(id, { comment, coordinates, status });
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Pin not found' });
     }
@@ -127,19 +141,22 @@ router.delete('/:id', (req: Request, res: Response) => {
 router.post('/:id/replies', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { author, avatar, userEmail, text } = req.body;
+    const { userId, author, userEmail, userPicture, text } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, message: 'Reply text is required' });
     }
 
-    const reply = db.addReply(id, {
-      author: author || 'Anonymous',
-      avatar: avatar || (author || 'A')[0].toUpperCase(),
-      userEmail,
-      text,
+    const effectiveUserId = userId || userEmail || 'usr_anonymous';
+    db.upsertUser({
+      id: effectiveUserId,
+      name: author || userEmail || 'User',
+      email: userEmail || 'user@feedback.dev',
+      picture: userPicture || '',
+      createdAt: new Date().toISOString(),
     });
 
+    const reply = db.addReply(id, effectiveUserId, text);
     if (!reply) {
       return res.status(404).json({ success: false, message: 'Pin not found' });
     }
@@ -163,21 +180,28 @@ router.post('/:id/replies', (req: Request, res: Response) => {
 router.post('/:id/reactions', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { emoji, author, userEmail, replyId } = req.body;
+    const { emoji, userId, author, userEmail, replyId } = req.body;
 
     if (!emoji) {
       return res.status(400).json({ success: false, message: 'Emoji is required' });
     }
 
-    const result = db.toggleReaction(id, emoji, author || 'Anonymous', userEmail, replyId);
-    if (!result) {
+    const effectiveUserId = userId || userEmail || 'usr_anonymous';
+    db.upsertUser({
+      id: effectiveUserId,
+      name: author || userEmail || 'User',
+      email: userEmail || 'user@feedback.dev',
+      picture: '',
+      createdAt: new Date().toISOString(),
+    });
+
+    const success = db.toggleReaction(id, effectiveUserId, emoji, replyId);
+    if (!success) {
       return res.status(404).json({ success: false, message: 'Pin or reply not found' });
     }
 
     return res.status(200).json({
       success: true,
-      action: result.action,
-      reactions: result.reactions,
       comment: db.getCommentById(id),
     });
   } catch (err: any) {
