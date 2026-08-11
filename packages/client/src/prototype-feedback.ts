@@ -80,6 +80,7 @@ export class PrototypeFeedback extends HTMLElement {
     this.loadUserSession();
     this.render();
     this.setupEventListeners();
+    this.setupNavigationListeners();
     this.fetchComments();
 
     // Live background polling every 5 seconds
@@ -118,6 +119,81 @@ export class PrototypeFeedback extends HTMLElement {
 
   private get projectId(): string {
     return this.getAttribute('project-id') || 'default';
+  }
+
+  private getCurrentNormalizedPath(): string {
+    try {
+      const u = new URL(window.location.href);
+      let p = u.pathname || '/';
+      if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+      return p.toLowerCase();
+    } catch {
+      return (window.location.pathname || '/').toLowerCase();
+    }
+  }
+
+  private getCommentNormalizedPath(commentUrl: string): string {
+    try {
+      const u = new URL(commentUrl);
+      let p = u.pathname || '/';
+      if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+      return p.toLowerCase();
+    } catch {
+      return commentUrl.toLowerCase();
+    }
+  }
+
+  private setupNavigationListeners() {
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = (...args: any[]) => {
+      originalPushState.apply(history, args as any);
+      window.dispatchEvent(new Event('pf-location-change'));
+    };
+
+    history.replaceState = (...args: any[]) => {
+      originalReplaceState.apply(history, args as any);
+      window.dispatchEvent(new Event('pf-location-change'));
+    };
+
+    window.addEventListener('popstate', () => this.handleUrlChange());
+    window.addEventListener('hashchange', () => this.handleUrlChange());
+    window.addEventListener('pf-location-change', () => this.handleUrlChange());
+
+    window.addEventListener('scroll', () => this.updatePopoverPositionOnScroll(), { passive: true });
+    window.addEventListener('resize', () => {
+      this.renderAllPagePins();
+      this.updatePopoverPositionOnScroll();
+    }, { passive: true });
+  }
+
+  private handleUrlChange() {
+    this.closeActivePopover();
+    this.fetchComments();
+  }
+
+  private updatePopoverPositionOnScroll() {
+    const popover = document.getElementById('pf-anchored-popover');
+    if (!popover) return;
+
+    const pinId = popover.getAttribute('data-active-pin-id');
+    if (!pinId) return;
+
+    const comment = this.comments.find((c) => c.id === pinId);
+    if (!comment) return;
+
+    const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+
+    const pinX = comment.coordinates.x ?? ((comment.coordinates.xPercent / 100) * docWidth);
+    const pinY = comment.coordinates.y ?? ((comment.coordinates.yPercent / 100) * docHeight);
+
+    const popoverLeft = Math.min(pinX + 20, docWidth - 360);
+    const popoverTop = Math.min(pinY - 10, docHeight - 500);
+
+    popover.style.left = `${Math.max(10, popoverLeft)}px`;
+    popover.style.top = `${Math.max(10, popoverTop)}px`;
   }
 
   private loadUserSession() {
@@ -177,7 +253,6 @@ export class PrototypeFeedback extends HTMLElement {
       if (data.success && data.user) {
         this.saveUserSession(data.user);
       } else {
-        // Fallback local decode
         const base64Url = response.credential.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(
@@ -204,7 +279,6 @@ export class PrototypeFeedback extends HTMLElement {
     if ((window as any).google && this.googleClientId) {
       (window as any).google.accounts.id.prompt();
     } else {
-      // Fallback interactive login modal if no client-id set
       this.showMockGoogleLoginModal();
     }
   }
@@ -471,7 +545,6 @@ export class PrototypeFeedback extends HTMLElement {
 
     overlay.appendChild(tip);
 
-    // Support Click & Drag Rectangle Selection!
     let isMouseDown = false;
     let startX = 0;
     let startY = 0;
@@ -532,27 +605,34 @@ export class PrototypeFeedback extends HTMLElement {
 
       this.disableCommentMode();
 
-      if (widthPx > 15 && heightPx > 15) {
-        // Dragged Rectangle Box Target
-        const leftPx = Math.min(startX, endX) + window.scrollX;
-        const topPx = Math.min(startY, endY) + window.scrollY;
+      const docScrollX = window.scrollX || window.pageXOffset || 0;
+      const docScrollY = window.scrollY || window.pageYOffset || 0;
+      const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+      const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
 
-        const xPercent = Number((((Math.min(startX, endX)) / window.innerWidth) * 100).toFixed(2));
-        const yPercent = Number((((Math.min(startY, endY)) / window.innerHeight) * 100).toFixed(2));
-        const widthPercent = Number(((widthPx / window.innerWidth) * 100).toFixed(2));
-        const heightPercent = Number(((heightPx / window.innerHeight) * 100).toFixed(2));
+      if (widthPx > 15 && heightPx > 15) {
+        const minX = Math.min(startX, endX);
+        const minY = Math.min(startY, endY);
+
+        const leftPx = minX + docScrollX;
+        const topPx = minY + docScrollY;
+
+        const xPercent = Number(((leftPx / docWidth) * 100).toFixed(2));
+        const yPercent = Number(((topPx / docHeight) * 100).toFixed(2));
+        const widthPercent = Number(((widthPx / docWidth) * 100).toFixed(2));
+        const heightPercent = Number(((heightPx / docHeight) * 100).toFixed(2));
 
         const coords = { x: leftPx, y: topPx, xPercent, yPercent, widthPx, heightPx, widthPercent, heightPercent };
         this.renderDraftPopover(leftPx, topPx, coords);
       } else {
-        // Single Point Click Pin Target
-        const x = endX + window.scrollX;
-        const y = endY + window.scrollY;
-        const xPercent = Number(((endX / window.innerWidth) * 100).toFixed(2));
-        const yPercent = Number(((endY / window.innerHeight) * 100).toFixed(2));
+        const absoluteX = endX + docScrollX;
+        const absoluteY = endY + docScrollY;
 
-        const coords = { x, y, xPercent, yPercent };
-        this.renderDraftPopover(x, y, coords);
+        const xPercent = Number(((absoluteX / docWidth) * 100).toFixed(2));
+        const yPercent = Number(((absoluteY / docHeight) * 100).toFixed(2));
+
+        const coords = { x: absoluteX, y: absoluteY, xPercent, yPercent };
+        this.renderDraftPopover(absoluteX, absoluteY, coords);
       }
     });
 
@@ -597,27 +677,34 @@ export class PrototypeFeedback extends HTMLElement {
   private renderAllPagePins() {
     this.removeAllPagePins();
 
-    const currentCleanUrl = window.location.href.split('#')[0];
+    const currentNormalizedPath = this.getCurrentNormalizedPath();
+    const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
 
-    this.comments.forEach((comment, index) => {
+    let pinCounter = 0;
+
+    this.comments.forEach((comment) => {
       if (comment.status === 'resolved') return;
-      if (comment.url.split('#')[0] !== currentCleanUrl) return;
 
-      const pinNum = index + 1;
+      // STRICT PAGE SPECIFIC FILTERING: Only show pins matching current page's normalized pathname
+      if (this.getCommentNormalizedPath(comment.url) !== currentNormalizedPath) return;
+
+      pinCounter++;
+      const pinNum = pinCounter;
+
       const pin = document.createElement('div');
       pin.className = 'pf-page-pin';
       pin.setAttribute('data-pin-id', comment.id);
       pin.setAttribute('data-html2canvas-ignore', 'false');
 
-      const leftPx = (comment.coordinates.xPercent / 100) * window.innerWidth + window.scrollX;
-      const topPx = (comment.coordinates.yPercent / 100) * window.innerHeight + window.scrollY;
+      const leftPx = comment.coordinates.x ?? ((comment.coordinates.xPercent / 100) * docWidth);
+      const topPx = comment.coordinates.y ?? ((comment.coordinates.yPercent / 100) * docHeight);
 
       const isRectangleBox = comment.coordinates.widthPercent && comment.coordinates.widthPercent > 0.5;
 
       if (isRectangleBox) {
-        // Render Rectangle Target Highlight Box!
-        const boxWidthPx = (comment.coordinates.widthPercent! / 100) * window.innerWidth;
-        const boxHeightPx = (comment.coordinates.heightPercent! / 100) * window.innerHeight;
+        const boxWidthPx = comment.coordinates.widthPx ?? ((comment.coordinates.widthPercent! / 100) * docWidth);
+        const boxHeightPx = comment.coordinates.heightPx ?? ((comment.coordinates.heightPercent! / 100) * docHeight);
 
         pin.style.cssText = `
           position: absolute;
@@ -633,7 +720,6 @@ export class PrototypeFeedback extends HTMLElement {
           cursor: pointer;
         `;
 
-        // Anchor pin badge on top left corner
         const badge = document.createElement('div');
         badge.style.cssText = `
           position: absolute;
@@ -648,11 +734,9 @@ export class PrototypeFeedback extends HTMLElement {
         badge.textContent = String(pinNum);
         pin.appendChild(badge);
       } else {
-        // Render Single Point Pin Marker
         pin.style.cssText = `
           position: absolute;
           left: ${leftPx}px; top: ${topPx}px;
-          transform: translate(-50%, -50%);
           width: 32px; height: 32px;
           background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
           color: #ffffff; border: 2px solid #ffffff;
@@ -674,7 +758,6 @@ export class PrototypeFeedback extends HTMLElement {
         pin.appendChild(numBadge);
       }
 
-      // Draggable Pins
       this.makePinDraggable(pin, comment);
 
       pin.addEventListener('click', (e) => {
@@ -723,8 +806,11 @@ export class PrototypeFeedback extends HTMLElement {
         const currentLeft = parseFloat(pinEl.style.left) || 0;
         const currentTop = parseFloat(pinEl.style.top) || 0;
 
-        const xPercent = Number((((currentLeft - window.scrollX) / window.innerWidth) * 100).toFixed(2));
-        const yPercent = Number((((currentTop - window.scrollY) / window.innerHeight) * 100).toFixed(2));
+        const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+        const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+
+        const xPercent = Number(((currentLeft / docWidth) * 100).toFixed(2));
+        const yPercent = Number(((currentTop / docHeight) * 100).toFixed(2));
 
         comment.coordinates.x = currentLeft;
         comment.coordinates.y = currentTop;
@@ -763,12 +849,15 @@ export class PrototypeFeedback extends HTMLElement {
     popover.id = 'pf-anchored-popover';
     popover.setAttribute('data-html2canvas-ignore', 'true');
 
-    const popoverLeft = Math.min(x + 20, window.innerWidth + window.scrollX - 340);
-    const popoverTop = Math.min(y - 10, window.innerHeight + window.scrollY - 300);
+    const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+
+    const popoverLeft = Math.min(x + 20, docWidth - 340);
+    const popoverTop = Math.min(y - 10, docHeight - 320);
 
     popover.style.cssText = `
       position: absolute;
-      left: ${popoverLeft}px; top: ${popoverTop}px;
+      left: ${Math.max(10, popoverLeft)}px; top: ${Math.max(10, popoverTop)}px;
       width: 320px;
       background: #0f172a; color: #f8fafc;
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -868,14 +957,18 @@ export class PrototypeFeedback extends HTMLElement {
 
     const popover = document.createElement('div');
     popover.id = 'pf-anchored-popover';
+    popover.setAttribute('data-active-pin-id', comment.id);
     popover.setAttribute('data-html2canvas-ignore', 'true');
 
-    const popoverLeft = Math.min(x + 20, window.innerWidth + window.scrollX - 360);
-    const popoverTop = Math.min(y - 10, window.innerHeight + window.scrollY - 420);
+    const docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+
+    const popoverLeft = Math.min(x + 20, docWidth - 360);
+    const popoverTop = Math.min(y - 10, docHeight - 480);
 
     popover.style.cssText = `
       position: absolute;
-      left: ${popoverLeft}px; top: ${popoverTop}px;
+      left: ${Math.max(10, popoverLeft)}px; top: ${Math.max(10, popoverTop)}px;
       width: 340px; max-height: 480px;
       background: #0f172a; color: #f8fafc;
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1033,7 +1126,7 @@ export class PrototypeFeedback extends HTMLElement {
   }
 
   // ---------------------------------------------------------------------------
-  // Requirement 3: Global All Annotations Side Panel (Pushes Body, No Overlay)
+  // Global All Annotations Side Panel
   // ---------------------------------------------------------------------------
 
   private toggleSidebar() {
@@ -1047,7 +1140,6 @@ export class PrototypeFeedback extends HTMLElement {
   private openSidebar() {
     this.isSidebarOpen = true;
 
-    // PUSH BODY MECHANISM: Adjust body margin-right so webpage content shifts left and is NEVER covered!
     document.body.style.transition = 'margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
     document.body.style.marginRight = '340px';
 
@@ -1058,7 +1150,6 @@ export class PrototypeFeedback extends HTMLElement {
   private closeSidebar() {
     this.isSidebarOpen = false;
 
-    // Reset body margin-right
     document.body.style.marginRight = '0px';
 
     const sidebar = this.shadow.getElementById('pf-global-sidebar');
@@ -1096,7 +1187,6 @@ export class PrototypeFeedback extends HTMLElement {
         <button id="pf-sb-close" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">&times;</button>
       </div>
 
-      <!-- Filters Header -->
       <div style="padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 10px;">
         <div style="display: flex; gap: 6px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px;">
           <button class="pf-sb-tab active" data-filter="open" style="flex: 1; padding: 6px; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; background: #6366f1; color: white; cursor: pointer;">Open</button>
@@ -1112,7 +1202,6 @@ export class PrototypeFeedback extends HTMLElement {
         </div>
       </div>
 
-      <!-- Comments List -->
       <div id="pf-sb-list" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;"></div>
     `;
 
@@ -1120,7 +1209,6 @@ export class PrototypeFeedback extends HTMLElement {
 
     sidebar.querySelector('#pf-sb-close')?.addEventListener('click', () => this.closeSidebar());
 
-    // Filter Tabs
     sidebar.querySelectorAll('.pf-sb-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
         sidebar.querySelectorAll('.pf-sb-tab').forEach((t) => {
@@ -1134,7 +1222,6 @@ export class PrototypeFeedback extends HTMLElement {
       });
     });
 
-    // Scope Toggle
     const pageToggle = sidebar.querySelector('#pf-page-toggle');
     pageToggle?.addEventListener('click', () => {
       if (this.sidebarPageFilter === 'current') {
@@ -1152,10 +1239,10 @@ export class PrototypeFeedback extends HTMLElement {
     const listEl = this.shadow.getElementById('pf-sb-list');
     if (!listEl) return;
 
-    const currentCleanUrl = window.location.href.split('#')[0];
+    const currentNormalizedPath = this.getCurrentNormalizedPath();
 
     const filtered = this.comments.filter((c) => {
-      if (this.sidebarPageFilter === 'current' && c.url.split('#')[0] !== currentCleanUrl) {
+      if (this.sidebarPageFilter === 'current' && this.getCommentNormalizedPath(c.url) !== currentNormalizedPath) {
         return false;
       }
       if (this.sidebarFilter === 'open' && c.status === 'resolved') return false;
@@ -1174,7 +1261,12 @@ export class PrototypeFeedback extends HTMLElement {
 
     listEl.innerHTML = filtered
       .map((c, index) => {
-        const pageName = new URL(c.url).pathname || '/';
+        let pageName = '/';
+        try {
+          pageName = new URL(c.url).pathname || '/';
+        } catch {
+          pageName = c.url;
+        }
 
         return `
         <div class="pf-sb-card" data-comment-id="${c.id}" data-url="${c.url}" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.2s ease;">
@@ -1197,23 +1289,23 @@ export class PrototypeFeedback extends HTMLElement {
       })
       .join('');
 
-    // Click handler to jump/navigate to annotation
     listEl.querySelectorAll('.pf-sb-card').forEach((card) => {
       card.addEventListener('click', () => {
         const id = card.getAttribute('data-comment-id');
         const url = card.getAttribute('data-url');
         if (!id || !url) return;
 
-        const targetCleanUrl = url.split('#')[0];
-        if (targetCleanUrl !== currentCleanUrl) {
+        const targetNormalizedPath = this.getCommentNormalizedPath(url);
+        if (targetNormalizedPath !== currentNormalizedPath) {
           window.location.href = url;
           return;
         }
 
         const comment = this.comments.find((c) => c.id === id);
         if (comment) {
-          // Scroll window to pin position
-          const targetY = (comment.coordinates.yPercent / 100) * window.innerHeight + window.scrollY;
+          const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+          const targetY = comment.coordinates.y ?? ((comment.coordinates.yPercent / 100) * docHeight);
+
           window.scrollTo({ top: targetY - 200, behavior: 'smooth' });
 
           setTimeout(() => {
@@ -1225,7 +1317,6 @@ export class PrototypeFeedback extends HTMLElement {
   }
 }
 
-// Define custom element automatically if window is available
 if (typeof window !== 'undefined' && !customElements.get('prototype-feedback')) {
   customElements.define('prototype-feedback', PrototypeFeedback);
 }
